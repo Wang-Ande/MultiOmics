@@ -4,7 +4,7 @@ pkg_install("mixOmicsTeam/mixOmics")
 devtools::install_github("mixOmicsTeam/mixOmics")
 library(mixOmics)
 data(breast.TCGA)
-
+   
 # Extract training data and name each data frame
 # Store as list
 X <- list(mRNA = breast.TCGA$data.train$mrna, 
