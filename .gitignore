@@ -1,0 +1,21 @@
+# R相关
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+.Rproj
+
+# 忽略文件夹
+01_data/
+03_result/
+
+# 忽略特定文件后缀文件
+
+*.rds
+*.xlsx
+*.csv
+*.pdf
+*.txt
+*.zip
+*.svg
+
