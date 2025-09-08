@@ -80,7 +80,7 @@ library(tidyverse)
 library(openxlsx)
 
 # set out path
-folder_path <- "./03_result/All/"
+folder_path <- "./03_result/WT-High/"
 if (!dir.exists(folder_path)) {
   dir.create(folder_path)
   print(paste("Folder", folder_path, "created."))
@@ -98,7 +98,7 @@ clean_matrix <- filter_coding_genes(tpm_df)
 colnames(clean_matrix)
 clean_matrix <- clean_matrix[,!colnames(clean_matrix)%in%c("ense","symbol")]
 transcriptome_data <- clean_matrix
-transcriptome_data <- clean_matrix[,grep("OCI", colnames(clean_matrix))]
+transcriptome_data <- clean_matrix[,-grep("2W", colnames(clean_matrix))]
 transcriptome_data <- transcriptome_data[,-grep('4W', colnames(transcriptome_data))] # 删除4w样本
 # filter low expr
 min_sample <- ceiling(ncol(transcriptome_data)/2)
@@ -122,6 +122,7 @@ colnames(intensity_df1)
 colnames(intensity_df1) <- gsub("_11|_M2", "", colnames(intensity_df1))
 proteome_data <- intensity_df1
 proteome_data <- intensity_df1[,-grep("4W", colnames(intensity_df1))] # 删除4w样本
+proteome_data <- proteome_data[,-grep("2W", colnames(proteome_data))] # 删除Low组别的样本
 anno_df1 <- read.xlsx("./01_data/data_anno.xlsx")
 anno_df1 <- anno_df1[anno_df1$Protein.Group%in%rownames(proteome_data),]
 # 提取 gene symbol（假设 Row.names 列有 ENSEMBL|symbol）
@@ -145,7 +146,7 @@ anno_df2 <- read.xlsx("./01_data/meta_anno_combined.xlsx")
 identical(rownames(intensity_df2), anno_df2$Compound_ID)
 rownames(intensity_df2) <- anno_df2$Name
 metabolome_data <- intensity_df2
-metabolome_data <- intensity_df2[,grep("OCI", colnames(intensity_df2))]
+metabolome_data <- intensity_df2[,-grep("2W", colnames(intensity_df2))] # 去除Low组别样本
 metabolome_data <- metabolome_data[,-grep("4W|QC", colnames(metabolome_data))]
 metabolome_data <- metabolome_data[,order(colnames(metabolome_data))]
 
@@ -174,10 +175,10 @@ X <- lapply(X, function(x) {
 # 创建响应变量（根据IC50分类）
 group_info <- read.xlsx("./01_data/group_info.xlsx")
 sample_info <- group_info
-sample_info <- group_info[grep("OCI", group_info$id),!colnames(sample_info)%in%c("cell")]
+sample_info <- group_info[-grep("2W", group_info$id),!colnames(sample_info)%in%c("cell")] # 去除 Low组别样本
 sample_info <- sample_info[-grep("4W", sample_info$id), ]
 rownames(sample_info) <- sample_info$id
-Y <- factor(sample_info$group, levels = c("WT", "Low", "High"))  # 必须是因子类型
+Y <- factor(sample_info$group, levels = c("WT", "High"))  # 必须是因子类型
 summary(Y)
 save(Y, file = file.path(folder_path, "Y.rds"))
 
@@ -268,8 +269,8 @@ selectVar(diablo.final, block = 'transcriptome', comp = 1)
 # 变量相关性图
 plotVar(diablo.final, cutoff = 0.7)
 # plotDiablo 组学相关性图, 手动保存
-pdf(file.path(folder_path, "omics_corr_comp3.pdf"), width = 6, height = 6)
-plotDiablo(diablo.final, ncomp = 3)
+pdf(file.path(folder_path, "omics_corr_comp2.pdf"), width = 6, height = 6)
+plotDiablo(diablo.final, ncomp = 2)
 dev.off()
 #  circos图显示组学间关系
 circosPlot(diablo.final, cutoff = 0.6)
@@ -285,11 +286,11 @@ plotIndiv(diablo.final, ind.names = FALSE, ellipse = TRUE, legend = TRUE,
           title = 'VR, DIABLO comp 1 - 2')
 dev.off()
 # plotLoadings
-pdf(file.path(folder_path, "Feature_loading_comp3.pdf"), width = 10, height = 7)
-plotLoadings(diablo.final, comp = 3, contrib = 'max', method = 'median')
+pdf(file.path(folder_path, "Feature_loading_comp1.pdf"), width = 10, height = 7)
+plotLoadings(diablo.final, comp = 1, contrib = 'max', method = 'median')
 dev.off()
 # 提取重要特征
-important_features <- selectVar(diablo.final, comp = 3, block = NULL)
-saveRDS(important_features, file = file.path(folder_path, "important_features_3.rds"))
-write.xlsx(important_features, file = file.path(folder_path, "important_features_3.xlsx"))
+important_features <- selectVar(diablo.final, comp = 1, block = NULL)
+saveRDS(important_features, file = file.path(folder_path, "important_features_1.rds"))
+write.xlsx(important_features, file = file.path(folder_path, "important_features_1.xlsx"))
 transcriptome_important <- important_features$transcriptome$value
