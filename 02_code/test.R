@@ -80,7 +80,7 @@ library(tidyverse)
 library(openxlsx)
 
 # set out path
-folder_path <- "./03_result/WT-High/"
+folder_path <- "./03_result/OCI/High-WT/"
 if (!dir.exists(folder_path)) {
   dir.create(folder_path)
   print(paste("Folder", folder_path, "created."))
@@ -98,8 +98,12 @@ clean_matrix <- filter_coding_genes(tpm_df)
 colnames(clean_matrix)
 clean_matrix <- clean_matrix[,!colnames(clean_matrix)%in%c("ense","symbol")]
 transcriptome_data <- clean_matrix
-transcriptome_data <- clean_matrix[,-grep("2W", colnames(clean_matrix))]
-transcriptome_data <- transcriptome_data[,-grep('4W', colnames(transcriptome_data))] # 删除4w样本
+# P53组别
+# transcriptome_data <- transcriptome_data[,colnames(transcriptome_data)%in%rownames(sample_info)]
+# P53组别分割线
+transcriptome_data <- clean_matrix[,-grep("2W|4W", colnames(clean_matrix))]
+transcriptome_data <- transcriptome_data[,-grep('MOLM13|MV4', colnames(transcriptome_data))] 
+
 # filter low expr
 min_sample <- ceiling(ncol(transcriptome_data)/2)
 transcriptome_data <- transcriptome_data[rowSums(transcriptome_data > 1) >= min_sample,]
@@ -121,8 +125,11 @@ intensity_df1 <- read.csv("./01_data/report.pg_matrix_fill_norma.csv", row.names
 colnames(intensity_df1)
 colnames(intensity_df1) <- gsub("_11|_M2", "", colnames(intensity_df1))
 proteome_data <- intensity_df1
-proteome_data <- intensity_df1[,-grep("4W", colnames(intensity_df1))] # 删除4w样本
-proteome_data <- proteome_data[,-grep("2W", colnames(proteome_data))] # 删除Low组别的样本
+# P53组别
+# proteome_data <- proteome_data[,colnames(proteome_data)%in%rownames(sample_info)]
+# P53组别分割线
+proteome_data <- intensity_df1[,-grep("2W|4W", colnames(intensity_df1))] 
+proteome_data <- proteome_data[,-grep("MOLM13|MV4", colnames(proteome_data))] # 删除Low组别的样本
 anno_df1 <- read.xlsx("./01_data/data_anno.xlsx")
 anno_df1 <- anno_df1[anno_df1$Protein.Group%in%rownames(proteome_data),]
 # 提取 gene symbol（假设 Row.names 列有 ENSEMBL|symbol）
@@ -146,8 +153,11 @@ anno_df2 <- read.xlsx("./01_data/meta_anno_combined.xlsx")
 identical(rownames(intensity_df2), anno_df2$Compound_ID)
 rownames(intensity_df2) <- anno_df2$Name
 metabolome_data <- intensity_df2
-metabolome_data <- intensity_df2[,-grep("2W", colnames(intensity_df2))] # 去除Low组别样本
-metabolome_data <- metabolome_data[,-grep("4W|QC", colnames(metabolome_data))]
+# P53组别
+# metabolome_data <- metabolome_data[,colnames(metabolome_data)%in%rownames(sample_info)]
+# P53组别分割线
+metabolome_data <- intensity_df2[,-grep("2W|4W", colnames(intensity_df2))] # 去除Low组别样本
+metabolome_data <- metabolome_data[,-grep("MOLM13|MV4|QC", colnames(metabolome_data))]
 metabolome_data <- metabolome_data[,order(colnames(metabolome_data))]
 
 ## X & Y ----
@@ -175,8 +185,15 @@ X <- lapply(X, function(x) {
 # 创建响应变量（根据IC50分类）
 group_info <- read.xlsx("./01_data/group_info.xlsx")
 sample_info <- group_info
-sample_info <- group_info[-grep("2W", group_info$id),!colnames(sample_info)%in%c("cell")] # 去除 Low组别样本
-sample_info <- sample_info[-grep("4W", sample_info$id), ]
+# P53组别
+# sample_info
+# sample_info <- group_info[grep("6W", group_info$id),!colnames(sample_info)%in%c("cell")]
+# sample_info[grep("MOLM13_6W_1|MOLM13_6W_3|MV4_6W_1|MV4_6W_2",sample_info$id), 2] <- "P53-mut"
+# sample_info[grep("High",sample_info$group), 2] <- "P53-wt"
+
+# P53组别分割线
+sample_info <- group_info[-grep("2W|4W", group_info$id),!colnames(sample_info)%in%c("cell")] # 去除 Low组别样本
+sample_info <- sample_info[-grep("MOLM13|MV4", sample_info$id), ]
 rownames(sample_info) <- sample_info$id
 Y <- factor(sample_info$group, levels = c("WT", "High"))  # 必须是因子类型
 summary(Y)
@@ -206,18 +223,18 @@ cor(res3.pls$variates$X, res3.pls$variates$Y)
 # 算法只会弱弱地考虑它们的共性，更多还是让它们各自解释自己的变化。
 
 # Design Matrix ----
-design <- matrix(0.9, ncol = length(X), nrow = length(X),
+design <- matrix(0.9, ncol = length(X), nrow = length(X),   # P53组别更想看突变和不突变之间的区别
                  dimnames = list(names(X), names(X)))
 diag(design) <- 0  # 对角线设为0
 design
 
 # numbers of components
-diablo.ncomp <- block.plsda(X, Y, ncomp = 5, design = design)
+diablo.ncomp <- block.plsda(X, Y, ncomp = 3, design = design)
 
 set.seed(123) # For reproducibility
 # validation = 'Mfold', folds = 10, nrepeat = 1 选择交叉验证，k小于最小样本数
 # validation = 'loo', nrepeat = 1 ,选择留一法则不需要重复
-perf.diablo.ncomp = perf(diablo.ncomp, validation = 'Mfold', folds = 7, nrepeat = 50) 
+perf.diablo.ncomp = perf(diablo.ncomp, validation = 'loo', nrepeat = 1) 
 
 #perf.diablo.tcga$error.rate  # Lists the different types of error rates
 
@@ -226,35 +243,35 @@ pdf(file.path(folder_path, "perf.ncomp.pdf"), width = 7, height = 6)
 plot(perf.diablo.ncomp)
 dev.off()
 perf.diablo.ncomp$choice.ncomp$WeightedVote
-ncomp <- 3
+ncomp <- 2
 
 # chunk takes about 2 min to run
 set.seed(123) # for reproducibility
 test.keepX <- list(
-  transcriptome = c(5:9, seq(10, 25, 5)),
-  proteome = c(5:9, seq(10, 20, 2)),
-  metabolome = c(seq(5, 25, 5)))
+  transcriptome = c(5:9, seq(10, 15, 5)), # 总共测试的特征数量组合：5,6,7,8,9,10,15,20,25
+  proteome = c(5:9, seq(10, 16, 2)),
+  metabolome = c(5:9, seq(10, 15, 5)))
 
 library(BiocParallel)
 registered()
 tune.diablo <- tune.block.splsda(X, Y, ncomp = ncomp, 
                                  test.keepX = test.keepX, design = design,
-                                 validation = 'Mfold', folds = 7, nrepeat = 50,
+                                 validation = 'loo', nrepeat = 1,
                                  BPPARAM = BiocParallel::SnowParam(workers = 16),
-                                 dist = "mahalanobis.dist") # mahalanobis.dist,centroids.dist,max,dist
+                                 dist = "centroids.dist") # mahalanobis.dist,centroids.dist,max,dist
 
 list.keepX.recommended <- tune.diablo$choice.keepX
 list.keepX.recommended
 # 也可以直接自己设置
 list.keepX.manual <- list(
-  transcriptome = c(7, 5),   # 成分1多些，成分2少些
-  proteome = c(7, 5),
-  metabolome = c(6, 10)
+  transcriptome = c(10, 3),   # 成分1多些，成分2少些
+  proteome = c(10, 3),
+  metabolome = c(10, 3)
 )
 # final model
 set.seed(123) # For reproducibility
 diablo.final <- block.splsda(X, Y, ncomp = ncomp, 
-                            keepX = list.keepX.recommended, design = design)
+                            keepX = list.keepX.manual, design = design)
 diablo.final$design
 saveRDS(diablo.final, file = file.path(folder_path, "diablo.final.rds"))
 # 模型评估
@@ -264,13 +281,15 @@ perf.diablo <- perf(diablo.final, validation = 'loo', nrepeat = 1)
 # 查看错误率
 plot(perf.diablo)
 
-# mRNA variables selected on component 1
+# variables selected on component 1
 selectVar(diablo.final, block = 'transcriptome', comp = 1)
+selectVar(diablo.final, block = 'proteome', comp = 1)
+selectVar(diablo.final, block = 'metabolome', comp = 1)
 # 变量相关性图
 plotVar(diablo.final, cutoff = 0.7)
 # plotDiablo 组学相关性图, 手动保存
-pdf(file.path(folder_path, "omics_corr_comp2.pdf"), width = 6, height = 6)
-plotDiablo(diablo.final, ncomp = 2)
+pdf(file.path(folder_path, "omics_corr_comp1.pdf"), width = 6, height = 6)
+plotDiablo(diablo.final, ncomp = 1)
 dev.off()
 #  circos图显示组学间关系
 circosPlot(diablo.final, cutoff = 0.6)
@@ -283,14 +302,24 @@ write_graph(myNetwork$gR, file = file.path(folder_path, "myNetwork.gml"), format
 # plotIndiv 手动保存
 pdf(file.path(folder_path, "Indiv_PCA.pdf"), width = 7, height = 6)
 plotIndiv(diablo.final, ind.names = FALSE, ellipse = TRUE, legend = TRUE, 
-          title = 'VR, DIABLO comp 1 - 2')
+          title = 'VR, DIABLO comp 1-2')
 dev.off()
 # plotLoadings
-pdf(file.path(folder_path, "Feature_loading_comp1.pdf"), width = 10, height = 7)
-plotLoadings(diablo.final, comp = 1, contrib = 'max', method = 'median')
+# block1
+pdf(file.path(folder_path, "Feature_loading_comp1_transcriptome.pdf"), width = 8, height = 6)
+plotLoadings(diablo.final, block = "transcriptome", comp = 1, contrib = 'max', method = 'median')
 dev.off()
+# block2
+pdf(file.path(folder_path, "Feature_loading_comp1_proteome.pdf"), width = 8, height = 6)
+plotLoadings(diablo.final, block = "proteome", comp = 1, contrib = 'max', method = 'median')
+dev.off()
+# block3
+pdf(file.path(folder_path, "Feature_loading_comp1_metabolome.pdf"), width = 12, height = 6)
+plotLoadings(diablo.final, block = "metabolome", comp = 1, contrib = 'max', method = 'median')
+dev.off()
+
 # 提取重要特征
 important_features <- selectVar(diablo.final, comp = 1, block = NULL)
 saveRDS(important_features, file = file.path(folder_path, "important_features_1.rds"))
 write.xlsx(important_features, file = file.path(folder_path, "important_features_1.xlsx"))
-transcriptome_important <- important_features$transcriptome$value
+
